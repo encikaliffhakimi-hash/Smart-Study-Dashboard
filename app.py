@@ -5,6 +5,7 @@ import edge_tts
 import asyncio
 import os
 import uuid
+import time
 from dotenv import load_dotenv
 
 # Load API key
@@ -53,7 +54,7 @@ if app_mode == "Create New Notes":
     st.divider()
     
     st.subheader("📁 Subject (chapter)")
-    subject_name = st.text_input("Chapter or Subject Name", value="  ")
+    subject_name = st.text_input("Chapter or Subject Name", value="")
 
     uploaded_file = st.file_uploader("Upload Full PDF Lecture Notes", type="pdf")
 
@@ -62,7 +63,7 @@ if app_mode == "Create New Notes":
             
             safe_folder_name = "".join([c for c in subject_name if c.isalnum() or c.isspace()]).rstrip().replace(" ", "_")
             if not safe_folder_name:
-                safe_folder_name = " "
+                safe_folder_name = "General_Notes"
                 
             # Save files inside the USER'S private directory, not the public one
             subject_dir = os.path.join(USER_BASE_DIR, safe_folder_name)
@@ -110,14 +111,23 @@ if app_mode == "Create New Notes":
                 [Flashcards here]
                 """
                 
-                try:
-                    response = client.models.generate_content(
-                        model="gemini-3.8-flash",
-                        contents=prompt
-                    )
-                except Exception as e:
-                    st.error("Google's AI servers are currently too busy. Please wait a minute and try again!")
-                    st.stop()
+                # --- NEW RETRY SYSTEM ---
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        response = client.models.generate_content(
+                            model="gemini-3.8-flash",
+                            contents=prompt
+                        )
+                        break  # If successful, break out of the retry loop
+                    except Exception as e:
+                        if attempt < max_retries - 1:
+                            # If it fails, pause the app for 10 seconds before trying again
+                            time.sleep(10)
+                        else:
+                            st.error("Google's API rate limit was reached. Please try a smaller PDF or try again later.")
+                            st.stop()
+                # ------------------------
                 
                 try:
                     parts = response.text.split("|||")
@@ -128,6 +138,11 @@ if app_mode == "Create New Notes":
                     master_script += response.text + "\n\n"
                 
                 progress_bar.progress((i + 1) / len(text_chunks))
+                
+                # --- NEW RATE LIMIT DELAY ---
+                # Pause for 5 seconds before sending the next section of the PDF
+                if i < len(text_chunks) - 1:
+                    time.sleep(5)
                 
             with st.spinner(f"Recording your podcast using {selected_voice_name}..."):
                 output_audio_path = os.path.join(subject_dir, "study_podcast.mp3")
