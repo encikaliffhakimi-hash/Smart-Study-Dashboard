@@ -62,7 +62,7 @@ if app_mode == "Create New Notes":
             
             safe_folder_name = "".join([c for c in subject_name if c.isalnum() or c.isspace()]).rstrip().replace(" ", "_")
             if not safe_folder_name:
-                safe_folder_name = "General_Notes"
+                safe_folder_name = " "
                 
             # Save files inside the USER'S private directory, not the public one
             subject_dir = os.path.join(USER_BASE_DIR, safe_folder_name)
