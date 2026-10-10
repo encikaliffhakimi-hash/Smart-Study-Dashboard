@@ -4,6 +4,7 @@ from google import genai
 import edge_tts
 import asyncio
 import os
+import uuid
 from dotenv import load_dotenv
 
 # Load API key
@@ -21,12 +22,18 @@ def chunk_text(text, chunk_size=20000):
 # --- Streamlit Web UI ---
 st.set_page_config(page_title="AI Study Dashboard", page_icon="🎓", layout="wide")
 
+# --- USER ISOLATION LOGIC ---
+# Generate a unique ID for every person who opens the website
+if 'user_id' not in st.session_state:
+    st.session_state.user_id = str(uuid.uuid4())
+
+# Create a private root folder specifically for this user's session
+USER_BASE_DIR = os.path.join("Subjects", st.session_state.user_id)
+os.makedirs(USER_BASE_DIR, exist_ok=True)
+
 # --- Sidebar Navigation ---
 st.sidebar.title("📚 Navigation")
-app_mode = st.sidebar.radio("Choose Mode", ["Create New Notes", "My Study Library"])
-
-# Ensure the Subjects directory exists
-os.makedirs("Subjects", exist_ok=True)
+app_mode = st.sidebar.radio("Choose Mode", ["Create New Notes", "My Private Library"])
 
 if app_mode == "Create New Notes":
     st.title("🎓 Smart Study Dashboard")
@@ -45,8 +52,8 @@ if app_mode == "Create New Notes":
 
     st.divider()
     
-    st.subheader("📁 Subject (chapter)")
-    subject_name = st.text_input("Chapter or Subject Name", value="General_Notes")
+    st.subheader("📁 Organization")
+    subject_name = st.text_input("Chapter or Subject Name (e.g., Data Coms Chap 1)", value="General_Notes")
 
     uploaded_file = st.file_uploader("Upload Full PDF Lecture Notes", type="pdf")
 
@@ -57,7 +64,8 @@ if app_mode == "Create New Notes":
             if not safe_folder_name:
                 safe_folder_name = "General_Notes"
                 
-            subject_dir = os.path.join("Subjects", safe_folder_name)
+            # Save files inside the USER'S private directory, not the public one
+            subject_dir = os.path.join(USER_BASE_DIR, safe_folder_name)
             os.makedirs(subject_dir, exist_ok=True)
             
             with st.spinner("Extracting entire text from PDF..."):
@@ -132,21 +140,20 @@ if app_mode == "Create New Notes":
                     text_file.write("--- FLASHCARDS ---\n")
                     text_file.write(master_flashcards)
                 
-            st.success(f"Dashboard Ready! Files saved securely in the '{safe_folder_name}' folder. Switch to 'My Study Library' to view them anytime.")
+            st.success(f"Dashboard Ready! Files saved securely in your private session folder. Switch to 'My Private Library' to view them.")
 
-elif app_mode == "My Study Library":
-    st.title("📚 My Study Library")
+elif app_mode == "My Private Library":
+    st.title("📚 My Private Library")
     
-    # Check what folders exist in the Subjects directory
-    existing_subjects = [f for f in os.listdir("Subjects") if os.path.isdir(os.path.join("Subjects", f))]
+    # Read ONLY from the user's private folder
+    existing_subjects = [f for f in os.listdir(USER_BASE_DIR) if os.path.isdir(os.path.join(USER_BASE_DIR, f))]
     
     if not existing_subjects:
-        st.info("Your library is empty. Go to 'Create New Notes' to generate your first study set.")
+        st.info("Your library is empty. Go to 'Create New Notes' to generate your first private study set.")
     else:
-        # Create a dropdown to select past subjects
         selected_subject = st.selectbox("Select a Chapter to Review", existing_subjects)
         
-        subject_dir = os.path.join("Subjects", selected_subject)
+        subject_dir = os.path.join(USER_BASE_DIR, selected_subject)
         audio_path = os.path.join(subject_dir, "study_podcast.mp3")
         text_path = os.path.join(subject_dir, "study_notes.txt")
         
@@ -154,7 +161,6 @@ elif app_mode == "My Study Library":
             st.subheader(f"🎧 {selected_subject} Podcast")
             st.audio(audio_path)
             
-            # Read the saved text file and split it back into Points and Flashcards
             with open(text_path, "r", encoding="utf-8") as f:
                 saved_content = f.read()
                 
@@ -162,7 +168,6 @@ elif app_mode == "My Study Library":
                 points_part, flashcards_part = saved_content.split("--- FLASHCARDS ---\n")
                 points_part = points_part.replace("--- KEY TAKEAWAYS ---\n", "")
             except ValueError:
-                # Fallback if formatting was slightly off
                 points_part = saved_content
                 flashcards_part = ""
             
