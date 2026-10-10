@@ -53,7 +53,7 @@ if app_mode == "Create New Notes":
     st.divider()
     
     st.subheader("📁 Subject (chapter)")
-    subject_name = st.text_input("Chapter or Subject Name (e.g., Data Coms Chap 1)", value="General_Notes")
+    subject_name = st.text_input("Chapter or Subject Name", value="General_Notes")
 
     uploaded_file = st.file_uploader("Upload Full PDF Lecture Notes", type="pdf")
 
